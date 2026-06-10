@@ -337,16 +337,16 @@ function guidesPage(): Response {
 
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
-  // El gateway puede entregar la ruta con o sin el prefijo /functions/v1.
+  // El gateway puede entregar la ruta con o sin el prefijo /functions/v1,
+  // y los links compartidos a veces llegan con basura pegada (ej. "**" de
+  // markdown). Localizamos el segmento de la función y limpiamos el resto.
   let path = url.pathname;
-  for (const prefix of [BASE, "/criptolempira"]) {
-    if (path === prefix || path.startsWith(prefix + "/")) {
-      path = path.slice(prefix.length);
-      break;
-    }
-  }
-  if (path === "" || path === "/") return homePage();
-  if (path === "/api/rates") {
+  const marker = "/criptolempira";
+  const idx = path.indexOf(marker);
+  if (idx !== -1) path = path.slice(idx + marker.length);
+  path = path.replace(/\*+$/g, "").replace(/\/+$/g, "");
+
+  if (path.endsWith("/api/rates")) {
     const rates = await getRates();
     return new Response(JSON.stringify(rates), {
       headers: {
@@ -356,6 +356,11 @@ Deno.serve(async (req: Request) => {
       },
     });
   }
-  if (path === "/guias" || path === "/guias/") return guidesPage();
-  return new Response("No encontrado", { status: 404 });
+  if (path.endsWith("/guias")) return guidesPage();
+  if (path === "" || path === "/") return homePage();
+  // Ruta desconocida: mejor llevar al inicio que mostrar un 404.
+  return new Response(null, {
+    status: 302,
+    headers: { Location: BASE },
+  });
 });
